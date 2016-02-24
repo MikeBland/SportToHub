@@ -26,7 +26,13 @@
 #define TEMP2          0x5
 #define INDVOLT        0x6
 #define ALTITUDE       0x10
+#define LONGITUDE      0x12
+#define LATITUDE       0x13
+#define LONGMINS		   0x1A
+#define LATMINS				 0x1B
 #define ALTIDEC        0x21
+#define EASTWEST       0x22
+#define NORTHSOUTH     0x23
 #define CURRENT        0x28 
 #define FR_VSPD        0x30
 #define VOLTAGE        0x3A 
@@ -40,6 +46,8 @@
 #define T1_FIRST_ID             0x0400
 #define CURR_FIRST_ID           0x0200
 #define VFAS_FIRST_ID           0x0210
+#define GPS_LONG_LATI_FIRST_ID  0x0800
+#define GPS_ALT_FIRST_ID        0x0820
 
 
 #define FORCE_INDIRECT(ptr) __asm__ __volatile__ ("" : "=e" (ptr) : "0" (ptr))
@@ -693,15 +701,21 @@ uint16_t VfasAp ;
 uint16_t Current ;
 uint16_t Rpm ;
 uint16_t Temp1 ;
+uint16_t LongDD ;
+uint16_t LatDD ;
+uint16_t LongMM ;
+uint16_t LatMM ;
+uint16_t LongEW ;
+uint16_t LatNS ;
 
-#define	SP_TEMP1_VALID	0x0001
-#define	SP_RPM_VALID		0x0002
-#define	SP_CURR_VALID		0x0004
-#define	SP_VFAS_VALID		0x0008
+#define	SP_TEMP1_VALID		0x0001
+#define	SP_RPM_VALID			0x0002
+#define	SP_CURR_VALID			0x0004
+#define	SP_VFAS_VALID			0x0008
+#define	SP_GPSLONG_VALID	0x0010
+#define	SP_GPSLAT_VALID		0x0020
 
 uint16_t SportReceived ;
-
-
 
 void processSportData()
 {
@@ -790,6 +804,38 @@ void processSportData()
 
 				case RPM_FIRST_ID >> 4 :		// RPM
 				break ;
+
+			  case GPS_LONG_LATI_FIRST_ID :
+				{	
+//					Bits 31-30 00 = LAT min/10000 N
+//					Bits 31-30 01 = LAT min/10000 S
+//					Bits 31-30 10 = LON min/10000 E
+//					Bits 31-30 11 = LON min/10000 W
+					uint32_t lvalue ;
+					lvalue = *( (uint32_t *) &RxData[3] ) ;
+					uint8_t code = lvalue >> 30 ;
+					lvalue &= 0x3FFFFFFF ;
+					uint16_t bp ;
+					uint16_t ap ;
+					uint32_t temp ;
+					temp = lvalue / 10000 ;
+					bp = (temp/ 60 * 100) + (temp % 60) ;
+		      ap = lvalue % 10000;
+					if ( code & 2 )	// Long
+					{
+						LongDD = bp ;
+						LongMM = ap ;
+						LongEW = ( code & 1 ) ? 'W' : 'E' ;
+					}
+					else
+					{
+						LatDD = bp ;
+						LatMM = ap ;
+						LatNS = ( code & 1 ) ? 'S' : 'N' ;
+					}
+				}
+				break ;
+
 			}
 
 		}
@@ -798,6 +844,7 @@ void processSportData()
 }
 
 uint8_t HubCellIndex ;
+uint8_t LatLongIndex ;
 
 void sendHubPacket()
 {
@@ -834,7 +881,26 @@ void sendHubPacket()
 		setBufferData( VOLTAGE, VfasBp ) ;
 		setBufferData( VOLTAGEDEC, VfasAp ) ;
 	}
-	
+	if ( LatLongIndex )
+	{
+		if ( SportReceived & SP_GPSLONG_VALID )
+		{
+			setBufferData( LONGITUDE, LongDD ) ;
+			setBufferData( LONGMINS, LongMM ) ;
+			setBufferData( EASTWEST, LongEW ) ;
+		}
+		LatLongIndex = 0 ;
+	}
+	else
+	{
+		if ( SportReceived & SP_GPSLAT_VALID )
+		{
+			setBufferData( LATITUDE, LatDD ) ;
+			setBufferData( LATMINS, LatMM ) ;
+			setBufferData( NORTHSOUTH, LatNS ) ;
+		}
+		LatLongIndex = 1 ;
+	}
 	TxHubPacket[HubInIndex++] = HUB_SEPARATOR ;
 	TxHubSize = HubInIndex ;
 	TxHubIndex = 0 ;
