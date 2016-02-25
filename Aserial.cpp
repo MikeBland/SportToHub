@@ -793,7 +793,7 @@ void processSportData()
 					VfasBp = value ;
 					value = lvalue - (uint32_t) value * 10 ;
 					VfasAp = value ;
-					SportReceived |= SP_TEMP1_VALID ;
+					SportReceived |= SP_VFAS_VALID ;
 				}
 				break ;
 			
@@ -826,12 +826,14 @@ void processSportData()
 						LongDD = bp ;
 						LongMM = ap ;
 						LongEW = ( code & 1 ) ? 'W' : 'E' ;
+						SportReceived |= SP_GPSLONG_VALID ;
 					}
 					else
 					{
 						LatDD = bp ;
 						LatMM = ap ;
 						LatNS = ( code & 1 ) ? 'S' : 'N' ;
+						SportReceived |= SP_GPSLAT_VALID ;
 					}
 				}
 				break ;
