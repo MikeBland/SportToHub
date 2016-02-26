@@ -805,7 +805,7 @@ void processSportData()
 				case RPM_FIRST_ID >> 4 :		// RPM
 				break ;
 
-			  case GPS_LONG_LATI_FIRST_ID :
+			  case GPS_LONG_LATI_FIRST_ID >> 4 :
 				{	
 //					Bits 31-30 00 = LAT min/10000 N
 //					Bits 31-30 01 = LAT min/10000 S
