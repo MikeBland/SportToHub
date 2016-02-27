@@ -19,12 +19,13 @@
 #include "Aserial.h"
 
 // Hub IDs
-#define GPSALT         0x1
-#define TEMP1          0x2
-#define RPM            0x3
-#define FUEL           0x4
-#define TEMP2          0x5
-#define INDVOLT        0x6
+#define GPSALT         0x01
+#define TEMP1          0x02
+#define RPM            0x03
+#define FUEL           0x04
+#define TEMP2          0x05
+#define INDVOLT        0x06
+#define GPSALTDEC      0x09
 #define ALTITUDE       0x10
 #define LONGITUDE      0x12
 #define LATITUDE       0x13
@@ -37,6 +38,10 @@
 #define FR_VSPD        0x30
 #define VOLTAGE        0x3A 
 #define VOLTAGEDEC     0x3B 
+#define GPSSPEED       0x11
+#define GPSSPEEDDEC    0x19
+#define COURSE         0x14
+#define COURSEDEC      0x1C
 
 // SPort IDs
 #define ALT_FIRST_ID            0x0100
@@ -48,6 +53,8 @@
 #define VFAS_FIRST_ID           0x0210
 #define GPS_LONG_LATI_FIRST_ID  0x0800
 #define GPS_ALT_FIRST_ID        0x0820
+#define GPS_SPEED_FIRST_ID      0x0830
+#define GPS_COURSE_FIRST_ID     0x0840
 
 
 #define FORCE_INDIRECT(ptr) __asm__ __volatile__ ("" : "=e" (ptr) : "0" (ptr))
@@ -707,6 +714,12 @@ uint16_t LongMM ;
 uint16_t LatMM ;
 uint16_t LongEW ;
 uint16_t LatNS ;
+uint16_t GpsSpeedBp ;
+uint16_t GpsSpeedAp ;
+uint16_t GpsCourseBp ;
+uint16_t GpsCourseAp ;
+uint16_t GpsAltBp ;
+uint16_t GpsAltAp ;
 
 #define	SP_TEMP1_VALID		0x0001
 #define	SP_RPM_VALID			0x0002
@@ -714,6 +727,9 @@ uint16_t LatNS ;
 #define	SP_VFAS_VALID			0x0008
 #define	SP_GPSLONG_VALID	0x0010
 #define	SP_GPSLAT_VALID		0x0020
+#define	SP_GPSALT_VALID		0x0040
+#define	SP_GPSHDG_VALID		0x0080
+#define	SP_GPSSPEED_VALID	0x0100
 
 uint16_t SportReceived ;
 
@@ -803,6 +819,11 @@ void processSportData()
 				break ;
 
 				case RPM_FIRST_ID >> 4 :		// RPM
+				{	
+					uint16_t value = * ( (uint16_t *) &RxData[3] ) ;
+					Rpm = value ;
+					SportReceived |= SP_RPM_VALID ;
+				}
 				break ;
 
 			  case GPS_LONG_LATI_FIRST_ID >> 4 :
@@ -838,6 +859,52 @@ void processSportData()
 				}
 				break ;
 
+			  case GPS_ALT_FIRST_ID >> 4 :
+					// cm
+				{
+					int32_t lvalue = *( (uint32_t *) &RxData[3] ) ;
+					int16_t value = lvalue / 100 ;
+					GpsAltBp = value ;
+					if ( value >= 0 )
+					{
+						value = lvalue - (uint32_t) value * 100 ;
+					}
+					else if ( value < -1)
+					{
+			    	value = -lvalue + value * 100 ;
+					}
+					else
+					{
+						value = 0 ;
+					}
+					GpsAltAp = value ;
+					SportReceived |= SP_GPSALT_VALID ;
+				}
+				break ;
+			  
+				case GPS_SPEED_FIRST_ID >> 4 :
+					// knots/1000
+				{
+					int32_t lvalue = *( (uint32_t *) &RxData[3] ) ;
+					int16_t value = lvalue / 1000 ;
+					GpsSpeedBp = value ;
+					value = lvalue - (uint32_t) value * 1000 ;
+					GpsSpeedAp = value / 10 ;
+					SportReceived |= SP_GPSSPEED_VALID ;
+				}
+				break ;
+
+			  case GPS_COURSE_FIRST_ID >> 4 :
+					// Degree/100
+				{
+					int32_t lvalue = *( (uint32_t *) &RxData[3] ) ;
+					int16_t value = lvalue / 100 ;
+					GpsCourseBp = value ;
+					value = lvalue - (uint32_t) value * 100 ;
+					GpsCourseAp = value ;
+					SportReceived |= SP_GPSHDG_VALID ;
+				}
+				break ;
 			}
 
 		}
@@ -846,7 +913,7 @@ void processSportData()
 }
 
 uint8_t HubCellIndex ;
-uint8_t LatLongIndex ;
+uint8_t AlternateIndex ;
 
 void sendHubPacket()
 {
@@ -854,7 +921,8 @@ void sendHubPacket()
 	setBufferData( ALTITUDE, AltBp ) ;
 	setBufferData( ALTIDEC, AltAp ) ;
 	setBufferData( FR_VSPD, Vspeed ) ;
-	
+
+	 
 	if ( FlvssCellCount )
 	{
 		uint16_t value = FlvssCells[HubCellIndex] ;
@@ -883,7 +951,7 @@ void sendHubPacket()
 		setBufferData( VOLTAGE, VfasBp ) ;
 		setBufferData( VOLTAGEDEC, VfasAp ) ;
 	}
-	if ( LatLongIndex )
+	if ( AlternateIndex )
 	{
 		if ( SportReceived & SP_GPSLONG_VALID )
 		{
@@ -891,7 +959,12 @@ void sendHubPacket()
 			setBufferData( LONGMINS, LongMM ) ;
 			setBufferData( EASTWEST, LongEW ) ;
 		}
-		LatLongIndex = 0 ;
+		if ( SportReceived & SP_GPSHDG_VALID )
+		{
+			setBufferData( COURSE, GpsCourseBp ) ;
+			setBufferData( COURSEDEC, GpsCourseAp ) ;
+		}
+		AlternateIndex = 0 ;
 	}
 	else
 	{
@@ -901,7 +974,17 @@ void sendHubPacket()
 			setBufferData( LATMINS, LatMM ) ;
 			setBufferData( NORTHSOUTH, LatNS ) ;
 		}
-		LatLongIndex = 1 ;
+		if ( SportReceived & SP_GPSHDG_VALID )
+		{
+			setBufferData( GPSALT, GpsAltBp ) ;
+			setBufferData( GPSALTDEC, GpsAltAp ) ;
+		}
+		AlternateIndex = 1 ;
+	}
+	if ( SportReceived & SP_GPSSPEED_VALID )
+	{
+		setBufferData( GPSSPEED, GpsSpeedBp ) ;
+		setBufferData( GPSSPEEDDEC, GpsSpeedAp ) ;
 	}
 	TxHubPacket[HubInIndex++] = HUB_SEPARATOR ;
 	TxHubSize = HubInIndex ;
