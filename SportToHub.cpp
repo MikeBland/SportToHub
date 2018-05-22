@@ -64,15 +64,9 @@ uint16_t Analog ;
 uint16_t AnaAve ;
 uint8_t AnaCount ;
 
-// First version just the altitude
-uint8_t HubPacket[] = {
-	0x5e, 0x10, 0x00, 0x00, 0x5e, 0x21, 0x00, 0x00, 0x5e
-} ;
-
-struct t_sportData MyData ;
+//struct t_sportData MyData ;
 
 extern void processSportData() ;
-
 
 void init()
 {
@@ -87,8 +81,9 @@ uint32_t HubMillis ;
 void setup()
 {
 //  pinMode(PIN_LED, OUTPUT); // The signal LED
-	MyData.next = 0 ;
-	initSportUart( &MyData ) ;
+//	MyData.next = 0 ;
+//	initSportUart( &MyData ) ;
+	initSportUart() ;
 	DDRB |= 0x20 ;
 	PORTB &= ~0x20 ;
 	sei() ;

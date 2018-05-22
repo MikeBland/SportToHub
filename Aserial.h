@@ -8,7 +8,7 @@ struct t_sportData
 } ;
 
 void setNewData( struct t_sportData *pdata, uint16_t id, uint32_t value ) ;
-void initSportUart( struct t_sportData *pdata ) ;
+void initSportUart() ;
 void pollSport( void ) ;
 void sendHubData( void ) ;
 void sendHubPacket( void ) ;

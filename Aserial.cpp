@@ -59,8 +59,8 @@
 
 #define FORCE_INDIRECT(ptr) __asm__ __volatile__ ("" : "=e" (ptr) : "0" (ptr))
 
-struct t_sportData *FirstData = 0 ;
-struct t_sportData *ThisData = 0 ;
+//struct t_sportData *FirstData = 0 ;
+//struct t_sportData *ThisData = 0 ;
 
 #define DEBUG 1
 
@@ -528,9 +528,10 @@ ISR(TIMER1_COMPA_vect)
  *
  *  \retval void
  */
-void initSportUart( struct t_sportData *pdata )
+//void initSportUart( struct t_sportData *pdata )
+void initSportUart()
 {
-	FirstData = ThisData = pdata ;
+//	FirstData = ThisData = pdata ;
   //PORT
 	TRXDDR &= ~( 1 << RX_PIN );       // PIN is input, tri-stated.
   TRXPORT &= ~( 1 << RX_PIN );      // PIN is input, tri-stated.
@@ -730,6 +731,8 @@ uint16_t GpsAltAp ;
 #define	SP_GPSALT_VALID		0x0040
 #define	SP_GPSHDG_VALID		0x0080
 #define	SP_GPSSPEED_VALID	0x0100
+#define	SP_ALT_VALID			0x0200
+#define	SP_VSPD_VALID			0x0400
 
 uint16_t SportReceived ;
 
@@ -770,6 +773,7 @@ void processSportData()
 				{
 					uint16_t value = * ( (uint16_t *) &RxData[3] ) ;
 					Vspeed = value ;
+					SportReceived |= SP_VSPD_VALID ;
 				}
 				break ;
 
@@ -790,6 +794,7 @@ void processSportData()
 							FlvssCells[cellIndex+1] = lvalue >> 20 ;
 						}
 					}
+					SportReceived |= SP_ALT_VALID ;
 				}
 				break ;
 			  
@@ -918,10 +923,17 @@ uint8_t AlternateIndex ;
 void sendHubPacket()
 {
 	HubInIndex = 0 ;
-	setBufferData( ALTITUDE, AltBp ) ;
-	setBufferData( ALTIDEC, AltAp ) ;
-	setBufferData( FR_VSPD, Vspeed ) ;
-
+	
+	if ( SportReceived & SP_ALT_VALID )
+	{
+		setBufferData( ALTITUDE, AltBp ) ;
+		setBufferData( ALTIDEC, AltAp ) ;
+	}
+	
+	if ( SportReceived & SP_VSPD_VALID )
+	{
+		setBufferData( FR_VSPD, Vspeed ) ;
+	}
 	 
 	if ( FlvssCellCount )
 	{
@@ -986,8 +998,11 @@ void sendHubPacket()
 		setBufferData( GPSSPEED, GpsSpeedBp ) ;
 		setBufferData( GPSSPEEDDEC, GpsSpeedAp ) ;
 	}
-	TxHubPacket[HubInIndex++] = HUB_SEPARATOR ;
-	TxHubSize = HubInIndex ;
-	TxHubIndex = 0 ;
+	if ( HubInIndex )
+	{
+		TxHubPacket[HubInIndex++] = HUB_SEPARATOR ;
+		TxHubSize = HubInIndex ;
+		TxHubIndex = 0 ;
+	}
 }
 

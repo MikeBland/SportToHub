@@ -1,1 +1,3 @@
 Arduino used to poll SPort sensors and output hub protocol
+Connect the SPort sensors signal to I/O 4
+Connect the 'D' receiver serial signal to I/O 5
